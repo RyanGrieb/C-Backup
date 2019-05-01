@@ -20,8 +20,6 @@ typedef struct FileNode
 #define fDIRECTORY 4
 #define fFILE 8
 
-#define BACKUP_PATH "./.backup/"
-
 //TODO: organize these methods better
 FileNode *getFileContents(char directory[256], FileNode *pHead);
 void createBackupFile(char *origDir, char *backupName, FileNode *pHead);
@@ -33,3 +31,6 @@ void createDirectory(char *name);
 void receiveInput(char *dir);
 char *validateDirectory(char *dir);
 char *replace_str(char *str, char *orig, char *rep);
+char *replaceCharacter(char *str, char orig, char rep);
+char *getCurrentTime();
+void *threadproc(void *arg);

@@ -13,6 +13,10 @@
 #include <unistd.h>
 #include <errno.h>
 
+//Thread dependences
+#include <unistd.h> //Header file for sleep(). man 3 sleep for details.
+#include <pthread.h>
+
 //My dependencies
 #include "backup.h"
 
@@ -22,8 +26,15 @@
 //Then, iterate through the files & copy the contents
 //!!!!!!!!!!MAKE sure we iterate through subdirectories properly too. Probally using recursion.
 
+//To compile
+//gcc -pthread -g -o Backup backup.c
+
 int main()
 {
+	//pthread_t tid;
+	//pthread_create(&tid, NULL, &threadproc, NULL);
+	//printf("%s\n", getCurrentTime());
+
 	FileNode *pHead = NULL;
 
 	//Ask the user to input the file he wants to backup
@@ -34,9 +45,10 @@ int main()
 	pHead = getFileContents(backupDir, pHead);
 	printFileContents(pHead);
 
-	//Ask the user which destination folder he wants to backup
-
-	char backupName[256] = "./temp/"; //Could be the time of the backup, whatever.
+	//Create the backupfolder name (also includes the final dir name)
+	char backupName[256];
+	strcpy(backupName, getCurrentTime());
+	strcat(backupName, "/"); //To finish the file name
 
 	//TODO: ask the user the time interval of backup's they want
 
@@ -100,6 +112,10 @@ FileNode *getFileContents(char directory[256], FileNode *pHead)
 		}
 		closedir(d);
 	}
+	else
+	{
+		printf("Error: File not found\n");
+	}
 
 	return pHead;
 }
@@ -107,11 +123,14 @@ FileNode *getFileContents(char directory[256], FileNode *pHead)
 //Create directories /w empty files in a new backup destination
 void createBackupFile(char *origDir, char *backupName, FileNode *pHead)
 {
-	char dirOfBackup[256];
-	strcpy(dirOfBackup, BACKUP_PATH); //Copy the base path to dirOfbackup
-	strcat(dirOfBackup, backupName);  // Add the backup name to our base backup path
-	createDirectory(BACKUP_PATH);	 //Create the base backup file
-	createDirectory(dirOfBackup);	 //Create subfolder of our backup name
+	char backupDir[256];
+
+	strcpy(backupDir, origDir);
+	strcat(backupDir, ".backup/");
+	createDirectory(backupDir);
+
+	strcpy(backupDir, strcat(backupDir, backupName));
+	createDirectory(backupDir);
 
 	FileNode *p;
 	for (p = pHead; p != NULL; p = p->pNext)
@@ -120,7 +139,7 @@ void createBackupFile(char *origDir, char *backupName, FileNode *pHead)
 		{
 			char newDir[256];
 			//TODO: repalce "./" with our true base directory provided. e.g. ./BackupFile/
-			strcpy(newDir, replace_str(p->file.path, origDir, dirOfBackup));
+			strcpy(newDir, replace_str(p->file.path, origDir, backupDir));
 			//Then append the filename at the end of the path.
 			strcat(newDir, p->file.name);
 			createDirectory(newDir);
@@ -132,7 +151,7 @@ void createBackupFile(char *origDir, char *backupName, FileNode *pHead)
 		if (p->file.type == fFILE)
 		{
 			char newDir[256];
-			strcpy(newDir, replace_str(p->file.path, origDir, dirOfBackup));
+			strcpy(newDir, replace_str(p->file.path, origDir, backupDir));
 			//Append the newDir & filename together
 			strcat(newDir, p->file.name);
 
@@ -197,6 +216,8 @@ char *validateDirectory(char *dir)
 	return dir;
 }
 
+//String manipulation methods
+
 //Not my original code.
 char *replace_str(char *str, char *orig, char *rep)
 {
@@ -214,6 +235,37 @@ char *replace_str(char *str, char *orig, char *rep)
 	return buffer;
 }
 
-char *getNameOfDirectory(char *str)
+char *replaceCharacter(char *str, char orig, char rep)
 {
+	int i;
+	for (i = 0; i < strlen(str); i++)
+		if (str[i] == orig)
+			str[i] == rep;
+
+	return str;
+}
+
+char *getLastDirName(char *str)
+{
+	printf("searching: %s\n", str);
+	//int i;
+	//for(i = 0; i < strlen(str); i++)
+}
+
+char *getCurrentTime()
+{
+	static char str[100];
+	time_t now = time(0);
+	strftime(str, sizeof(str), "%Y-%m-%d %H꞉%M꞉%S", localtime(&now));
+	return str;
+}
+
+//Repeating thread test
+void *threadproc(void *arg)
+{
+	while (1)
+	{
+		sleep(1);
+		printf("test\n");
+	}
 }
