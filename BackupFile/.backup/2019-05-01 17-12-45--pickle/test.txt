@@ -1,5 +1,0 @@
-This has text in it
-
-
-
-It should work properly.

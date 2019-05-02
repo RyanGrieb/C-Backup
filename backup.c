@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 //File dependences
 #include <dirent.h>
@@ -31,29 +32,30 @@
 
 int main()
 {
-	//pthread_t tid;
-	//pthread_create(&tid, NULL, &threadproc, NULL);
-	//printf("%s\n", getCurrentTime());
-
 	FileNode *pHead = NULL;
 
 	//Ask the user to input the file he wants to backup
 	char backupDir[256];
-	receiveInput(backupDir);
+	receiveDirectory(backupDir);
 
 	//Initalize our linkedList with our backup files
 	pHead = getFileContents(backupDir, pHead);
-	printFileContents(pHead);
-
-	//Create the backupfolder name (also includes the final dir name)
-	char backupName[256];
-	strcpy(backupName, getCurrentTime());
-	strcat(backupName, "/"); //To finish the file name
+	//printFileContents(pHead);
 
 	//TODO: ask the user the time interval of backup's they want
+	char timeInterval[256];
+	receiveBackupInterval(timeInterval);
 
-	createBackupFile(backupDir, backupName, pHead);
+	//Run thread here
+	//define arguments
+	BackupArgs *args = (BackupArgs *)malloc(sizeof(BackupArgs));
+	strcpy(args->origDir, backupDir);
+	args->timeInterval = convertTimeToSeconds(timeInterval);
+	//args->pHead = pHead;
 
+	pthread_t tid;
+	pthread_create(&tid, NULL, backupThread, (void *)args);
+	pthread_join(tid, NULL);
 	return 0;
 }
 
@@ -87,7 +89,7 @@ FileNode *getFileContents(char directory[256], FileNode *pHead)
 	{
 		while ((dir = readdir(d)) != NULL)
 		{
-			if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0) //Ignore . & .. directory
+			if (strcmp(dir->d_name, ".") != 0 && strcmp(dir->d_name, "..") != 0 && strcmp(dir->d_name, ".backup") != 0) //Ignore . & .. directory & .backup directory
 			{
 				//Create file to add to linkedlist
 				File file = initFile(dir->d_name, dir->d_type);
@@ -125,10 +127,12 @@ void createBackupFile(char *origDir, char *backupName, FileNode *pHead)
 {
 	char backupDir[256];
 
+	//Create the main ./backup/ dir if it doesnt exist already.
 	strcpy(backupDir, origDir);
 	strcat(backupDir, ".backup/");
 	createDirectory(backupDir);
 
+	//Create the main backup file with out timestamp.
 	strcpy(backupDir, strcat(backupDir, backupName));
 	createDirectory(backupDir);
 
@@ -156,8 +160,13 @@ void createBackupFile(char *origDir, char *backupName, FileNode *pHead)
 			strcat(newDir, p->file.name);
 
 			//Create new file at the linkedlist destination
-			FILE *newFile = fopen(newDir, "wb");							 //dst
-			FILE *oldFile = fopen(strcat(p->file.path, p->file.name), "rb"); //src
+			FILE *newFile = fopen(newDir, "wb");
+
+			//Read the old file name (+ adds on the filename to the path)
+			char combinedFilePath[256];
+			strcpy(combinedFilePath, p->file.path);
+			strcat(combinedFilePath, p->file.name);
+			FILE *oldFile = fopen(combinedFilePath, "rb"); //Open the old file
 			int i;
 			for (i = getc(oldFile); i != EOF; i = getc(oldFile))
 			{
@@ -195,12 +204,22 @@ void createDirectory(char *name)
 #endif
 }
 
-void receiveInput(char *dir)
+//!!!
+//TODO: remove these two methods and have a universal input method which i can handle input errors
+//!!!
+
+void receiveDirectory(char *dir)
 {
 	printf("Enter a directory to backup: \n");
 	scanf("%s", dir);
 
 	strcpy(dir, validateDirectory(dir)); //Couldn't i use a double pointer with this? How?
+}
+
+void receiveBackupInterval(char *time)
+{
+	printf("Enter a backup interval in proper format: e.g. (1h30m10s):\n");
+	scanf("%s", time);
 }
 
 char *validateDirectory(char *dir)
@@ -245,11 +264,51 @@ char *replaceCharacter(char *str, char orig, char rep)
 	return str;
 }
 
-char *getLastDirName(char *str)
+int convertTimeToSeconds(char *str)
 {
-	printf("searching: %s\n", str);
-	//int i;
-	//for(i = 0; i < strlen(str); i++)
+	//Example input: 2h30m10s
+
+	int time = 0;
+
+	//number variables
+	int index = 0;
+	char currNumber[256];
+
+	int i;
+	for (i = 0; i < strlen(str); i++)
+	{
+		//
+		if (isdigit(str[i]))
+		{
+			currNumber[index] = str[i];
+			index++;
+		}
+		else if (isalpha(str[i])) //Else if we came across a time character
+		{
+			int num = atoi(currNumber); //Convert to digit
+			switch (str[i])
+			{
+			case 'h':
+				time += (num * 3600);
+				break;
+
+			case 'm':
+				time += (num * 60);
+				break;
+
+			case 's':
+				time += num;
+				break;
+
+			default:
+				printf("Inavlid time character\n");
+				break;
+			}
+			memset(currNumber, 0, strlen(currNumber));
+			index = 0;
+		}
+	}
+	return time;
 }
 
 char *getCurrentTime()
@@ -261,11 +320,20 @@ char *getCurrentTime()
 }
 
 //Repeating thread test
-void *threadproc(void *arg)
+void *backupThread(void *args)
 {
 	while (1)
 	{
-		sleep(1);
-		printf("test\n");
+		FileNode *pHead = NULL;
+		pHead = getFileContents(((BackupArgs *)args)->origDir, pHead);
+
+		//Create the backupfolder name (also includes the final dir name)
+		char backupName[256];
+		strcpy(backupName, getCurrentTime());
+		strcat(backupName, "/"); //To finish the file name
+
+		createBackupFile(((BackupArgs *)args)->origDir, backupName, pHead);
+		printf("Backup created sucessfully at %s\n", getCurrentTime());
+		sleep(((BackupArgs *)args)->timeInterval);
 	}
 }
